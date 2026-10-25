@@ -1,0 +1,127 @@
+{
+  "traces": [
+    {
+      "trace_id": "0a17abd32710ad4ad9c3f0419df106ee",
+      "session_id": "conv-7731",
+      "status": "ok",
+      "spans": [
+        {
+          "span_id": "7b76b7db929abf07",
+          "trace_id": "0a17abd32710ad4ad9c3f0419df106ee",
+          "name": "retrieve policy_kb",
+          "type": "rag",
+          "start_time": "2026-10-25T12:19:28.838Z",
+          "end_time": "2026-10-25T12:19:28.848Z",
+          "status": "unset",
+          "attributes": {
+            "openinference.span.kind": "RETRIEVER",
+            "rag.db_system": "qdrant",
+            "rag.documents_retrieved": 4
+          },
+          "parent_span_id": "7f26cdc35a58069d",
+          "metadata": {
+            "service.name": "refund-agent"
+          }
+        },
+        {
+          "span_id": "2025fde4c4150112",
+          "trace_id": "0a17abd32710ad4ad9c3f0419df106ee",
+          "name": "ChatCompletion",
+          "type": "llm",
+          "start_time": "2026-10-25T12:19:28.848Z",
+          "end_time": "2026-10-25T12:19:28.858Z",
+          "status": "unset",
+          "attributes": {
+            "openinference.span.kind": "LLM",
+            "llm.provider": "openai",
+            "llm.model_name": "gpt-4o-mini",
+            "llm.token_count.prompt": 812,
+            "llm.token_count.completion": 64,
+            "gen_ai.system": "openai",
+            "gen_ai.request.model": "gpt-4o-mini",
+            "gen_ai.usage.input_tokens": 812,
+            "gen_ai.usage.output_tokens": 64
+          },
+          "parent_span_id": "7f26cdc35a58069d",
+          "metadata": {
+            "service.name": "refund-agent"
+          }
+        },
+        {
+          "span_id": "edaf6350962d7275",
+          "trace_id": "0a17abd32710ad4ad9c3f0419df106ee",
+          "name": "execute_tool lookup_order",
+          "type": "tool",
+          "start_time": "2026-10-25T12:19:28.858Z",
+          "end_time": "2026-10-25T12:19:28.868Z",
+          "status": "unset",
+          "attributes": {
+            "gen_ai.operation.name": "execute_tool",
+            "gen_ai.tool.name": "lookup_order",
+            "gen_ai.tool.call.id": "call_01",
+            "tool.name": "lookup_order"
+          },
+          "parent_span_id": "7f26cdc35a58069d",
+          "metadata": {
+            "service.name": "refund-agent"
+          }
+        },
+        {
+          "span_id": "8359c1711d1f6d4f",
+          "trace_id": "0a17abd32710ad4ad9c3f0419df106ee",
+          "name": "chat gpt-4o-mini",
+          "type": "llm",
+          "start_time": "2026-10-25T12:19:28.869Z",
+          "end_time": "2026-10-25T12:19:28.879Z",
+          "status": "unset",
+          "attributes": {
+            "gen_ai.operation.name": "chat",
+            "gen_ai.provider.name": "openai",
+            "gen_ai.request.model": "gpt-4o-mini",
+            "gen_ai.usage.input_tokens": 905,
+            "gen_ai.usage.output_tokens": 41,
+            "gen_ai.system": "openai"
+          },
+          "parent_span_id": "7f26cdc35a58069d",
+          "metadata": {
+            "service.name": "refund-agent"
+          }
+        },
+        {
+          "span_id": "7f26cdc35a58069d",
+          "trace_id": "0a17abd32710ad4ad9c3f0419df106ee",
+          "name": "invoke_agent refund-agent",
+          "type": "agent",
+          "start_time": "2026-10-25T12:19:28.838Z",
+          "end_time": "2026-10-25T12:19:28.879Z",
+          "status": "unset",
+          "attributes": {
+            "gen_ai.operation.name": "invoke_agent",
+            "gen_ai.agent.name": "refund-agent",
+            "gen_ai.conversation.id": "conv-7731",
+            "amp.trace.input": "Where is order 4417?",
+            "amp.trace.output": "Order 4417 shipped on 21 Oct and arrives tomorrow.",
+            "amp.trace.channel": "web"
+          },
+          "metadata": {
+            "service.name": "refund-agent"
+          }
+        }
+      ],
+      "start_time": "2026-10-25T12:19:28.838Z",
+      "end_time": "2026-10-25T12:19:28.879Z",
+      "trace_name": "invoke_agent refund-agent",
+      "attributes": {
+        "channel": "web"
+      },
+      "input": {
+        "role": "human",
+        "content": "Where is order 4417?"
+      },
+      "output": {
+        "role": "AI",
+        "content": "Order 4417 shipped on 21 Oct and arrives tomorrow."
+      }
+    }
+  ]
+}

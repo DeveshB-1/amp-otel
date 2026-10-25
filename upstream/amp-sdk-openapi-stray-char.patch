@@ -1,0 +1,11 @@
+diff --git a/openapi/amp-telemetry-sdk.yaml b/openapi/amp-telemetry-sdk.yaml
+index 6983196..cdcda92 100644
+--- a/openapi/amp-telemetry-sdk.yaml
++++ b/openapi/amp-telemetry-sdk.yaml
+@@ -591,5 +591,3 @@ components:
+         retryAfter:
+           type: integer
+           description: Seconds to wait before retry (for rate limiting)
+-
+-d
+\ No newline at end of file

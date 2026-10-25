@@ -1,0 +1,593 @@
+openapi: 3.1.0
+info:
+  title: AMP Telemetry SDK API
+  version: 1.0.0
+  description: |
+    SDK API for ingesting telemetry data from agentic AI systems into AMP (Agent Management Platform).
+    
+    AMP provides comprehensive observability, governance, and analytics for AI agents and LLM applications.
+    
+    ## Authentication
+    All endpoints require an API key passed via `X-API-Key` header.
+    
+    ## Supported Formats
+    - `otel` - OpenTelemetry traces with GenAI semantic conventions (recommended)
+    - `transcript` - Conversation transcript format
+    
+    ## Rate Limits
+    - 100 traces per batch
+    - 100 transcripts per batch
+    
+    ## SDK Features
+    - Automatic retry with exponential backoff
+    - Async batching
+    - Gzip compression for large payloads
+  contact:
+    name: AMP Support
+    email: support@kore.ai
+  license:
+    name: MIT
+
+servers:
+  - url: https://amp.kore.ai
+    description: Production
+
+security:
+  - ApiKey: []
+
+tags:
+  - name: telemetry
+    description: Telemetry ingestion endpoints
+  - name: health
+    description: Service health endpoints
+
+paths:
+  /api/v1/telemetry:
+    post:
+      operationId: ingestTelemetry
+      summary: Ingest telemetry data
+      description: |
+        Send OTEL-formatted telemetry traces or conversation transcripts.
+        
+        ## OTEL Format
+        Use `format=otel` (default) for OpenTelemetry traces with GenAI semantic conventions.
+        Each trace contains spans representing LLM calls, tool executions, RAG operations, etc.
+        
+        ## Transcript Format
+        Use `format=transcript` for conversation transcripts with message history.
+      tags:
+        - telemetry
+      parameters:
+        - name: format
+          in: query
+          required: false
+          description: Telemetry format (defaults to otel)
+          schema:
+            type: string
+            enum: [otel, transcript]
+            default: otel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelemetryPayload'
+            examples:
+              llmTrace:
+                summary: Simple LLM Call
+                value:
+                  traces:
+                    - trace_id: "trace-abc-001"
+                      session_id: "session-xyz-001"
+                      start_time: "2025-12-25T10:00:00.000Z"
+                      end_time: "2025-12-25T10:00:05.000Z"
+                      status: "ok"
+                      spans:
+                        - span_id: "span-llm-001"
+                          trace_id: "trace-abc-001"
+                          name: "llm.completion"
+                          start_time: "2025-12-25T10:00:00.000Z"
+                          end_time: "2025-12-25T10:00:05.000Z"
+                          status: "ok"
+                          type: "llm"
+                          attributes:
+                            gen_ai.system: "openai"
+                            gen_ai.request.model: "gpt-4"
+                            gen_ai.usage.input_tokens: 150
+                            gen_ai.usage.output_tokens: 75
+              ragPipeline:
+                summary: RAG Pipeline
+                value:
+                  traces:
+                    - trace_id: "trace-rag-001"
+                      session_id: "session-rag-001"
+                      spans:
+                        - span_id: "span-retrieval-001"
+                          trace_id: "trace-rag-001"
+                          name: "retrieval.vector_search"
+                          type: "rag"
+                          attributes:
+                            rag.db_system: "pinecone"
+                            rag.retrieval_method: "vector_search"
+                            rag.documents_retrieved: 5
+                        - span_id: "span-llm-rag-001"
+                          trace_id: "trace-rag-001"
+                          parent_span_id: "span-retrieval-001"
+                          name: "llm.completion"
+                          type: "llm"
+                          attributes:
+                            gen_ai.system: "openai"
+                            gen_ai.request.model: "gpt-4"
+                            gen_ai.usage.input_tokens: 1500
+                            gen_ai.usage.output_tokens: 200
+      responses:
+        '202':
+          description: Telemetry accepted for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryResponse'
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "VALIDATION_ERROR"
+                message: "No traces or transcripts provided"
+                statusCode: 400
+        '401':
+          description: Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "UNAUTHORIZED"
+                message: "Invalid API key"
+                statusCode: 401
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "RATE_LIMIT_EXCEEDED"
+                message: "Too many requests. Retry after 60 seconds."
+                statusCode: 429
+                retryAfter: 60
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "INTERNAL_ERROR"
+                message: "An unexpected error occurred. Please try again."
+                statusCode: 500
+
+  /api/v1/health:
+    get:
+      operationId: getHealth
+      summary: Health check
+      description: Check if the AMP ingestion service is healthy and can accept requests.
+      tags:
+        - health
+      security: []  # No auth required for health check
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+                timestamp: "2025-12-25T10:00:00.000Z"
+                version: "1.0.0"
+
+components:
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        API key for authentication. 
+        Obtain from AMP dashboard: Settings → API Keys → Create Key
+
+  schemas:
+    # ============================================
+    # REQUEST SCHEMAS
+    # ============================================
+    
+    TelemetryPayload:
+      type: object
+      description: Telemetry batch payload containing traces and/or transcripts
+      properties:
+        attributes:
+          type: object
+          description: |
+            Session-level attributes applied to the entire payload.
+            These describe the session context (customer tier, region, channel, etc.)
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: number
+              - type: boolean
+          example:
+            customer_tier: "standard"
+            region: "nz"
+        traces:
+          type: array
+          description: Array of OTEL traces (max 100 per batch)
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/Trace'
+        transcripts:
+          type: array
+          description: Array of conversation transcripts (max 100 per batch)
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/Transcript'
+      example:
+        attributes:
+          customer_tier: "standard"
+          region: "nz"
+        traces:
+          - trace_id: "trace-001"
+            session_id: "session-001"
+            spans:
+              - span_id: "span-001"
+                trace_id: "trace-001"
+                name: "llm.completion"
+
+    Trace:
+      type: object
+      description: OTEL trace containing one or more spans
+      required:
+        - trace_id
+        - session_id
+        - spans
+      properties:
+        trace_id:
+          type: string
+          description: Unique trace identifier (32-char hex recommended)
+          example: "trace-abc-001"
+        session_id:
+          type: string
+          description: Session identifier for grouping related traces (multi-turn conversations)
+          example: "session-xyz-001"
+        spans:
+          type: array
+          description: Array of spans (minimum 1 required)
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Span'
+        start_time:
+          type: string
+          format: date-time
+          description: Trace start time (ISO 8601)
+          example: "2025-12-25T10:00:00.000Z"
+        end_time:
+          type: string
+          format: date-time
+          description: Trace end time (ISO 8601)
+          example: "2025-12-25T10:00:05.000Z"
+        status:
+          type: string
+          description: Trace status
+          enum: [ok, error, unset]
+          example: "ok"
+        attributes:
+          type: object
+          description: |
+            Trace-level attributes (experiment group, risk scores, etc.)
+            These describe the trace context, separate from span-level attributes.
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: number
+              - type: boolean
+          example:
+            experiment_group: "A"
+            risk_scr: 2.0
+        input:
+          type: object
+          description: Trace-level input message (the user's query/request)
+          properties:
+            role:
+              type: string
+              description: Message role (e.g., human, user, system)
+              example: "human"
+            content:
+              type: string
+              description: Message content
+              example: "What is AI observability?"
+        output:
+          type: object
+          description: Trace-level output message (the AI's response)
+          properties:
+            role:
+              type: string
+              description: Message role (e.g., AI, assistant)
+              example: "AI"
+            content:
+              type: string
+              description: Message content
+              example: "AI observability is..."
+        metadata:
+          type: object
+          description: Additional trace metadata
+          additionalProperties: true
+          example:
+            environment: "production"
+            user_id: "user-123"
+
+    Span:
+      type: object
+      description: |
+        OTEL span representing a single operation.
+        
+        ## Span Types
+        - `llm` - LLM inference calls
+        - `tool` - Tool/function executions
+        - `rag` - Retrieval operations
+        - `agent` - Agent lifecycle events
+        - `orchestration` - Chain/workflow orchestration
+        - `custom` - Custom operations
+        
+        ## Token Attributes (OTEL GenAI v1.37+)
+        - `gen_ai.usage.input_tokens` - Input/prompt tokens
+        - `gen_ai.usage.output_tokens` - Output/completion tokens
+      required:
+        - span_id
+        - trace_id
+        - name
+      properties:
+        span_id:
+          type: string
+          description: Unique span identifier (16-char hex recommended)
+          example: "span-llm-001"
+        trace_id:
+          type: string
+          description: Parent trace identifier
+          example: "trace-abc-001"
+        name:
+          type: string
+          description: Span name (e.g., llm.completion, tool.execute)
+          example: "llm.completion"
+        parent_span_id:
+          type: string
+          nullable: true
+          description: Parent span ID for nested operations
+          example: "span-root-001"
+        start_time:
+          type: string
+          format: date-time
+          description: Span start time (ISO 8601)
+        end_time:
+          type: string
+          format: date-time
+          description: Span end time (ISO 8601)
+        startTimeUnixNano:
+          type: string
+          description: OTEL start time in nanoseconds (alternative to start_time)
+          example: "1735124400000000000"
+        endTimeUnixNano:
+          type: string
+          description: OTEL end time in nanoseconds (alternative to end_time)
+          example: "1735124405000000000"
+        status:
+          type: string
+          description: Span status
+          enum: [ok, error, unset]
+          example: "ok"
+        type:
+          type: string
+          description: Span type for categorization
+          enum: [llm, tool, rag, agent, orchestration, custom]
+          example: "llm"
+        attributes:
+          type: object
+          description: |
+            OTEL span attributes following GenAI semantic conventions.
+            
+            Common attributes:
+            - gen_ai.system: Provider (openai, anthropic, google, etc.)
+            - gen_ai.request.model: Model name (gpt-4, claude-3-opus, etc.)
+            - gen_ai.usage.input_tokens: Input token count
+            - gen_ai.usage.output_tokens: Output token count
+            - gen_ai.agent.version: Agent version (semver or custom versioning)
+            - gen_ai.request.temperature: Sampling temperature
+          additionalProperties: true
+          example:
+            gen_ai.system: "openai"
+            gen_ai.request.model: "gpt-4"
+            gen_ai.usage.input_tokens: 150
+            gen_ai.usage.output_tokens: 75
+        events:
+          type: array
+          description: OTEL span events (prompts, completions, errors)
+          items:
+            $ref: '#/components/schemas/SpanEvent'
+        metadata:
+          type: object
+          description: Additional span metadata
+          additionalProperties: true
+
+    SpanEvent:
+      type: object
+      description: OTEL span event (e.g., gen_ai.content.prompt)
+      properties:
+        name:
+          type: string
+          description: Event name
+          example: "gen_ai.content.prompt"
+        timestamp:
+          type: string
+          format: date-time
+          description: Event timestamp
+        attributes:
+          type: object
+          description: Event attributes
+          additionalProperties: true
+
+    Transcript:
+      type: object
+      description: Conversation transcript with message history
+      required:
+        - session_id
+        - conversation_id
+        - messages
+      properties:
+        session_id:
+          type: string
+          description: Session identifier
+          example: "session-xyz-001"
+        conversation_id:
+          type: string
+          description: Conversation identifier
+          example: "conv-abc-001"
+        messages:
+          type: array
+          description: Array of messages (minimum 1)
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Message'
+        conversation_turn:
+          type: integer
+          description: Turn number in multi-turn conversation
+          example: 1
+        metadata:
+          type: object
+          description: Additional transcript metadata
+          additionalProperties: true
+
+    Message:
+      type: object
+      description: Conversation message
+      required:
+        - role
+        - content
+      properties:
+        role:
+          type: string
+          description: Message role
+          enum: [user, assistant, system, tool]
+          example: "user"
+        content:
+          type: string
+          description: Message content
+          example: "What is the weather today?"
+        timestamp:
+          type: string
+          format: date-time
+          description: Message timestamp
+
+    # ============================================
+    # RESPONSE SCHEMAS
+    # ============================================
+
+    TelemetryResponse:
+      type: object
+      description: Response after telemetry ingestion (v1.3.0 - Simplified with UUID-reference pattern)
+      required:
+        - status
+        - ingestion_id
+        - format
+        - payload_size
+        - duration_ms
+        - persisted
+        - queued
+      properties:
+        status:
+          type: string
+          description: Status of the ingestion request
+          enum: [accepted, partial, rejected]
+          example: "accepted"
+        ingestion_id:
+          type: string
+          format: uuid
+          description: Unique identifier for this ingestion (for debugging/tracing)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        format:
+          type: string
+          description: Telemetry format detected/used
+          enum: [otel, transcript, agentic, ai_for_work, searchai]
+          example: "otel"
+        payload_size:
+          type: integer
+          description: Size of the payload in bytes
+          example: 52428
+        duration_ms:
+          type: integer
+          description: Processing time in milliseconds
+          example: 45
+        persisted:
+          type: boolean
+          description: Whether data was persisted to durable storage
+          example: true
+        queued:
+          type: boolean
+          description: Whether data was queued for async processing
+          example: true
+        warnings:
+          type: array
+          description: Any warnings during ingestion (non-fatal)
+          items:
+            type: string
+          example: []
+
+    HealthResponse:
+      type: object
+      description: Service health status (simple - no internal infrastructure details)
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          description: Service health status
+          enum: [healthy, unhealthy]
+          example: "healthy"
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+          example: "2025-12-25T10:00:00.000Z"
+        version:
+          type: string
+          description: Service version
+          example: "1.0.0"
+
+    ErrorResponse:
+      type: object
+      description: Error response
+      required:
+        - error
+        - message
+        - statusCode
+      properties:
+        error:
+          type: string
+          description: Error code
+          example: "VALIDATION_ERROR"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "No traces or transcripts provided"
+        statusCode:
+          type: integer
+          description: HTTP status code
+          example: 400
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+        retryAfter:
+          type: integer
+          description: Seconds to wait before retry (for rate limiting)

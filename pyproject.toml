@@ -1,0 +1,27 @@
+[project]
+name = "amp-otel"
+version = "0.1.0"
+description = "OpenTelemetry span exporter that sends Python agent traces to Kore.ai AMP (Agent Management Platform)"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = ["opentelemetry-sdk>=1.20"]
+
+[project.optional-dependencies]
+validate = ["jsonschema>=4.18", "pyyaml>=6"]
+
+[project.scripts]
+amp-otel-check = "amp_otel.validate:main"
+amp-otel-mock = "amp_otel.mock_server:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "jsonschema>=4.18", "pyyaml>=6"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["amp_otel"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
